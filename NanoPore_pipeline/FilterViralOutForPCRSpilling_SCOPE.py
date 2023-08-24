@@ -22,7 +22,7 @@ def parseArgs(argv):
     '''
     Parsing the arguments
     '''
-    parser = argparse.ArgumentParser(description='SCOPE PCR filtering, groups the bins 4 and 4. Takes the highest coverage in a sample within the bin, this is the breakpoint, saves the bins and its sum of depth. Compares it to the other bins')
+    parser = argparse.ArgumentParser(description='SCOPE PCR filtering, groups the bins using metadatafile. Takes the highest coverage in a sample within the bin, this is the breakpoint, saves the bins and its sum of depth. Compares it to the other bins')
     parser.add_argument("--metadata", dest = 'metadata', required=True,help ="Comma seperated file containing the samplename,group")
     parser.add_argument("--sample", dest = 'sample', required=True,help ="Sample name for the output")
     arguments = parser.parse_args(argv)
