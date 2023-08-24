@@ -241,8 +241,16 @@ def ParseAcrossTheSampleGroupsScope(Tot,out_parsedunfilt, sample, ToRemove):
                     else: # If there are multiple groups to the same bin but the hit group is not the same as the one saved in key we put it in discard!
                         # Obs, we should only discard when one is higher! Otherwise we keep them both!                        
                         for t in ",".join(i[0].split(",")[1:]).split("|"): # We want one sample on each row for quick filtering
-                            discardstring=t.replace(",","\t")
-                            print(discardstring, file=oDiscard)
+                            reads=str(t.split(",")[0])
+                            lchrom=str(t.split(",")[1])
+                            lcoord=str(t.split(",")[2])
+                            rchrom=str(t.split(",")[3])
+                            rcoord=str(t.split(",")[4])
+                            anno1=str(t.split(",")[5])
+                            annot2=str(",".join(t.split(",")[6:-1]))
+                            sample=str(t.split(",")[-1])
+
+                            print(sample+"\t"+reads+"\t"+lchrom+":"+lcoord+"\t"+rchrom+":"+rcoord+"\t"+anno1+"\t"+annot2, file=oDiscard)
                             
 
     # Gathering statistics to make sure the input integrations is the same as the sum of reported (filtered and Discarded)
@@ -258,7 +266,7 @@ def ParseAcrossTheSampleGroupsScope(Tot,out_parsedunfilt, sample, ToRemove):
     with open(OutDiscarded, "r") as inf:
         for l in inf:
             l=l.strip()
-            c=int(l.split("\t")[0])
+            c=int(l.split("\t")[1])
             TotDiscarded+=c
 
     logging.info('%s\tnFiltered integrations (Reads):%s \tnDiscarded Integrations (Reads): %s', time.ctime().split(" ")[-2],TotFilt, TotDiscarded)
