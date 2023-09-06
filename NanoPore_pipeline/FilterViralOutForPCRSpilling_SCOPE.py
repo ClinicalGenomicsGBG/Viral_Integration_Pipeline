@@ -98,6 +98,7 @@ def readMergedFromScope(outMerged, sample, ToRemove):
                 lnreads=int(l.split("\t")[1])
                 lanno1=l.split("\t")[4]
                 lanno2=l.split("\t")[5]
+                lanno2=lanno2.replace(",","-") # So we stop having comma in anno2 for easier filtering on biology side
 
                 if not d.keys(): # The dictionary is empty so we either way need to add to the dict
                     d[lcoord]=[[lnreads,llchrom,llpos,lrchrom,lrpos,lanno1,lanno2, lsample]]
