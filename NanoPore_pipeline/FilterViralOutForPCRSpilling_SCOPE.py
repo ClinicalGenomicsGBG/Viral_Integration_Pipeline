@@ -249,9 +249,9 @@ def ParseAcrossTheSampleGroupsScope(Tot,out_parsedunfilt, sample, ToRemove):
                             rcoord=str(t.split(",")[4])
                             anno1=str(t.split(",")[5])
                             annot2=str(",".join(t.split(",")[6:-1]))
-                            sample=str(t.split(",")[-1])
+                            s=str(t.split(",")[-1])
 
-                            print(sample+"\t"+reads+"\t"+lchrom+":"+lcoord+"\t"+rchrom+":"+rcoord+"\t"+anno1+"\t"+annot2, file=oDiscard)
+                            print(s+"\t"+reads+"\t"+lchrom+":"+lcoord+"\t"+rchrom+":"+rcoord+"\t"+anno1+"\t"+annot2, file=oDiscard)
                             
 
     # Gathering statistics to make sure the input integrations is the same as the sum of reported (filtered and Discarded)
@@ -273,27 +273,42 @@ def ParseAcrossTheSampleGroupsScope(Tot,out_parsedunfilt, sample, ToRemove):
     logging.info('%s\tnFiltered integrations (Reads):%s \tnDiscarded Integrations (Reads): %s', time.ctime().split(" ")[-2],TotFilt, TotDiscarded)
     logging.info('%s\tnTotal output integrations (Reads): %s\t nTotal input integrations (Reads): %s', time.ctime().split(" ")[-2],TotFilt+TotDiscarded, Tot)
 
-
+    
     # Finally we loop through the Merged parsed file to split the integrations to their files
-    Detected=[]
-    with open(OutParsed, "r") as inf:
+
+    outSampleSeperatedPCRFilt=sample+"_SCOPE_PCRfilt.txt"
+
+    
+    #Detected=[]
+    with open(OutParsed, "r") as inf, open(outSampleSeperatedPCRFilt, "w") as o:
+        print("nSupportedReads\tSample\tleftmostCoords\trightmostCoords\tAnno\tAnno2", file=o)
         next(inf)
         for l in inf:
             l=l.strip()
             for r in l.split("\t")[3].split("|"):
                 row=r.replace(",","\t")
-                sample=row.split("\t")[-1].split(".txt")[0]+"_SCOPE_PCRfilt.txt"
-                outrow=row.split("\t")[0]+"\t"+ row.split("\t")[1] + ":" + row.split("\t")[2] + "\t" +  row.split("\t")[3] + ":" +  row.split("\t")[4] +"\t" +  row.split("\t")[5] + "\t" + row.split("\t")[6]
-                if not sample in Detected: # This is the first time we reach it! Create the file and the header
+                outrow=row.split("\t")[0]+"\t"+ row.split("\t")[-1].split(".txt")[0]+"\t"+row.split("\t")[1] + ":" + row.split("\t")[2] + "\t" +  row.split("\t")[3] + ":" +  row.split("\t")[4] +"\t" +  row.split("\t")[5] + "\t" + row.split("\t")[6]
+                print(outrow, file=o)
+
+
+                
+                """
+                #s=row.split("\t")[-split(".txt")[0]+"_SCOPE_PCRfilt.txt"
+                #outrow=row.split("\t")[0]+"\t"+ row.split("\t")[1] + ":" + row.split("\t")[2] + "\t" +  row.split("\t")[3] + ":" +  row.split("\t")[4] +"\t" +  row.split("\t")[5] + "\t" + row.split("\t")[6]
+                if not s in Detected: # This is the first time we reach it! Create the file and the header
                     command="echo \"nSupportedReads\tleftmostCoords\trightmostCoords\tAnno\tAnno2\" > " + sample
                     os.system(command)
-                    command="echo \""+outrow+ "\" >> "+sample
+                    command="echo \""+outrow+ "\" >> "+s
                     os.system(command)
-                    Detected.append(sample)
+                    Detected.append(s)
                 else:
-                    command="echo \""+outrow+ "\" >> "+sample
+                    command="echo \""+outrow+ "\" >> "+s
                     os.system(command)
 
+                """
+
+
+                    
 def main(metadata, sample):
     # Create the logger
     process = psutil.Process(os.getpid())
