@@ -21,13 +21,12 @@ from Bio import AlignIO
 from Bio import Phylo
 from Bio.Align import AlignInfo
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
-#from Bio import pairwise2
-#from Bio.pairwise2 import format_alignment
-
+import pandas as pd
 import re
-
 import pysam
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # The problem with extracting the fusions, we are taking the ones with the highest evidence and goes from 10 on each side for those, Therefore one read can be calculated multiple times which is wrong! We need to order by amount of reads, starting from them to go through the line, and if a read was already matched ignore it.
@@ -103,7 +102,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
 
 
     unintegratedConsensusfiles=[]
-    unintegratedConsensusfiles_split=[]
+    unintegratedConsensusfiles_split={}
     
     for key, value in coords.items():
         rawbam=RawBamsFolder+"/"+key+".bam"
@@ -157,7 +156,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
                                 end=prev+1
                                 startanno=first+1 # I am extracting from 0 coord but for common usage one report as plus 1, that is why we will write it in the report
                                 if end-start > 9:
-                                    print(">HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
+                                    print(">"+key+"_HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
                                 first=i
                         prev=i
                 # we need to check if we have something in the last loop!, good example of this in barcode 12
@@ -166,10 +165,10 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
                     start=first
                     startanno=first+1
                     end = prev
-                    print(">HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
-            unintegratedConsensusfiles_split.append(outFastaSplitOnParts)
+                    print(">"+key+"HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
+            unintegratedConsensusfiles_split[key]=[outFastaSplitOnParts]
                 
-    return(unintegratedConsensusfiles)
+    return(unintegratedConsensusfiles_split)
          
 def ExtractFromOUTSE(TargetFolder,coords):
     """
@@ -270,7 +269,7 @@ def ExtractFromOUTSE(TargetFolder,coords):
 
 
 
-def CreateConsensus(Output, ClustalOexec, coordswithseq):
+def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfiles_split):
     """
     This one performs the multiple sequence alignments and generates the consenus within each bin
 
@@ -342,12 +341,18 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq):
                         l=l.strip()
                         print(l, file=o)        
         print("For",key,"Reported", len(Singletons)+len(Consenussequences), "unique breakpoints of", uniqueBreaks)
-        MergedFastaOutputs.append(OutMerged)
+        #MergedFastaOutputs.append(OutMerged)
+        
+        if key in unintegratedConsensusfiles_split:
+            unintegratedConsensusfiles_split[key].append(OutMerged)
+        else:
 
-    return(MergedFastaOutputs)
+            unintegratedConsensusfiles_split[key]=[OutMerged]
+
+    return(unintegratedConsensusfiles_split)
         
 
-def GenerateTree(Output, ClustalOexec, MergedFastaOutputs):
+def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split):
     """
     Here we generates the tree using the different consensus sequences 
 
@@ -361,26 +366,37 @@ def GenerateTree(Output, ClustalOexec, MergedFastaOutputs):
     """
 
 
+    for key, values in unintegratedConsensusfiles_split.items():
+        MergedIntegrationsAndunintegrated=Output+"/"+key+"_Merged_unIntegrated_Integrated_consensus.fasta"
 
-    for f in MergedFastaOutputs:
-        print(f)
-    
-    
+        counter=0
+        
+        with open(MergedIntegrationsAndunintegrated, "w") as o: # Merge the consensuses of the integrations and the unintegrated ones
+            for i in values:
+                with open(i, "r") as inf:
+                    for l in inf:
+                        l=l.strip()
+                        counter+=1
+                        print(l, file=o)
 
-        print("--- Performing MA (For tree generation)---")
-        Outfa=f.split(".fasta")[0]+"_MA.fa"
-        command = "%s -i %s -o %s --outfmt fasta --force --threads 4" %(ClustalOexec, f, Outfa)
-        subprocess.call(command, shell=True)
-        align = AlignIO.read(Outfa,'fasta')
-
-
-        print("--- Calculates the distance matrix ---")
-        # Calculate the distance matrix
-        calculator = DistanceCalculator('identity')
-        distMatrix = calculator.get_distance(align)
-
-        print(distMatrix)
-
+        
+        if counter > 2: # We need to have more than 1 sequence to be able to perform the MA
+                
+            print("--- Performing MA (For tree generation)---")
+            Outfa=key.split(".fasta")[0]+"_MA.fa"
+            command = "%s -i %s -o %s --outfmt fasta --force --threads 4" %(ClustalOexec, MergedIntegrationsAndunintegrated, Outfa)
+            subprocess.call(command, shell=True)
+            align = AlignIO.read(Outfa,'fasta')
+            print("--- Calculates the distance matrix ---")
+            # Calculate the distance matrix
+            calculator = DistanceCalculator('identity')
+            distMatrix = calculator.get_distance(align)
+            dismatDF = pd.DataFrame(list(distMatrix), columns=distMatrix.names, index=distMatrix.names)
+            outdistmat=Output+"/"+key+"_DistanceMatrix.csv"
+            dismatDF.to_csv(outdistmat)
+        else: 
+            print("warning, only 1 sequence in", key, "skipping!")
+        
     """
     print("--- Constructs the phylogenetic trees---")
     # Create a DistanceTreeConstructor object
@@ -418,10 +434,10 @@ def GenerateTree(Output, ClustalOexec, MergedFastaOutputs):
 
 def main(TargetFolder, RawBamsFolder, ClustalOexec, Output):
     coords=extracCoords(TargetFolder)
-    ExtractNonIntegratedHBV(coords,RawBamsFolder,Output)
-    #coordswithseq=ExtractFromOUTSE(TargetFolder,coords)
-    #MergedFastaOutputs=CreateConsensus(Output, ClustalOexec, coordswithseq)
-    #GenerateTree(Output, ClustalOexec, MergedFastaOutputs)
+    unintegratedConsensusfiles_split=ExtractNonIntegratedHBV(coords,RawBamsFolder,Output)
+    coordswithseq=ExtractFromOUTSE(TargetFolder,coords)
+    unintegratedConsensusfiles=CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfiles_split)
+    GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split)
 
     
 if __name__=='__main__':
