@@ -3,7 +3,6 @@
 #$ -S /bin/bash
 #$ -N Minimap2
 #$ -j y
-#$ -m bea
 #$ -cwd
 #$ -pe mpi 5
 #$ -q development.q

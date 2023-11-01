@@ -4,7 +4,7 @@
 # Extract those aligned that does not contain a breakpoint as well!
 # Then for each breakpoint make a multiple alignment 
 
-# Remember the break is from the end coord of Viral and start for Human, this is recorded in the binning as well! 
+# Remember the break is from the end coord of Viral and start for Human, this is recorded in the binning as well!
 
 
 # The script is using py3, most of the viral pipe is using py2

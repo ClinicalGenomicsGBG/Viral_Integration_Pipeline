@@ -165,7 +165,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
                     start=first
                     startanno=first+1
                     end = prev
-                    print(">"+key+"HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
+                    print(">"+key+"_HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
             unintegratedConsensusfiles_split[key]=[outFastaSplitOnParts]
                 
     return(unintegratedConsensusfiles_split)
@@ -391,7 +391,14 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split):
             # Calculate the distance matrix
             calculator = DistanceCalculator('identity')
             distMatrix = calculator.get_distance(align)
-            dismatDF = pd.DataFrame(list(distMatrix), columns=distMatrix.names, index=distMatrix.names)
+            newnames=[]
+            for i in distMatrix.names:
+                i=i.split("MergedFromPorechop_")[-1]
+                
+                newnames.append(i)
+            #print(newnames)
+            dismatDF = pd.DataFrame(list(distMatrix), columns=newnames, index=newnames)
+            #print(dismatDF)
             outdistmat=Output+"/"+key+"_DistanceMatrix.csv"
             dismatDF.to_csv(outdistmat)
         else: 
