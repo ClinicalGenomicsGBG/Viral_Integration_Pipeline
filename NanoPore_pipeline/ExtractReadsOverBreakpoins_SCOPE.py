@@ -28,6 +28,11 @@ import pysam
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from pycirclize import Circos
+from io import StringIO
+
+from ete3 import Tree
+
 
 # The problem with extracting the fusions, we are taking the ones with the highest evidence and goes from 10 on each side for those, Therefore one read can be calculated multiple times which is wrong! We need to order by amount of reads, starting from them to go through the line, and if a read was already matched ignore it.
 
@@ -35,26 +40,33 @@ import seaborn as sns
 
  #~/.conda/envs/ClustalOmega/bin/clustalo
 
-# How should the consensus be generated? Now 0.7, ambigous sequence of N
+# How should the consensus be generated? Now 0.6, ambigous sequence of N
 
- 
+#For solving the qt.qpa.plugin error message run the following! 
+#export QT_QPA_PLATFORM=offscreen
+
+# /medstore/projects/P23-044/Code/Viral_Integration_Pipeline/NanoPore_pipeline/VisualizeDistanceMatrix.R
+
 def parseArgs():
     parser = argparse.ArgumentParser(description='Takes the binning output and the OUTSE to extract the reads across the fusions',formatter_class=RawTextHelpFormatter)
     parser.add_argument('--TargetFolder', dest='TargetFolder', help='path to the folder containing the Sample_MergedParsedFilteredFromContamination_Bin10.txt and the *.OutSE_FusionPipe.txt', required=True)
     parser.add_argument('--RawBams', dest='RawBamsFolder', help='path to the folder containing the alignmentFiles from minimap2', required=True)
     parser.add_argument('--ClustalOexec', dest='ClustalOexec', help='Path to ClustalOmega', required=True)
     parser.add_argument('--Output', dest='Output', help='Output filename, sets the basename', required=True)
+    parser.add_argument('--PathToRVizScript', dest='DistancePlottingScript', help='Path to Script that generates the distance heatmap in R', required=True)
+    parser.add_argument('--DepthTresh', dest='DepthTresh', help='Depth Treshold for the integrations, this is not applied for the non integrated! (default 1)', type=int, default=1)
     arguments=parser.parse_args(sys.argv[1:])
     return arguments
 
 
 
-def extracCoords(TargetFolder):
+def extracCoords(TargetFolder, DepthTresh):
     """
+    Get the breakouts for each barcode by looping the MergedParsedFilteredFromContamination_Bin10.txt file from the Breakpipeline
+    """
+
+    print("--- Extracting integrations based on depth filter " + str(DepthTresh) + " ---")
     
-    """
-
-
     coords={}
     
     for f in glob.glob(TargetFolder+"/*_MergedParsedFilteredFromContamination_Bin10.txt"):
@@ -68,27 +80,30 @@ def extracCoords(TargetFolder):
                 groupinfo=l.split("\t")[2]
                 SummaryInfo=l.split("\t")[3]
 
-                for item in SummaryInfo.split("|"):
-                    barcodereads=int(item.split(",")[0])
-                    
-                    barcodelchrom=item.split(",")[1]
-                    barcodelstart=item.split(",")[2]
-                    Viralcoords=str(barcodelchrom)+":"+str(barcodelstart)
-                    
-                    barcoderchrom=item.split(",")[3]
-                    barcoderstart=item.split(",")[4]
-                    Humancoords=str(barcoderchrom)+":"+str(barcoderstart)
-                    
-                    barcodeAnnno1=item.split(",")[5]
-                    barcodeAnnno2=item.split(",")[6]
 
-                    Anno=barcodeAnnno1+"|"+barcodeAnnno2
+                if int(groupnreads) >= DepthTresh:
+                
+                    for item in SummaryInfo.split("|"):
+                        barcodereads=int(item.split(",")[0])
+                        
+                        barcodelchrom=item.split(",")[1]
+                        barcodelstart=item.split(",")[2]
+                        Viralcoords=str(barcodelchrom)+":"+str(barcodelstart)
                     
-                    barcode=item.split(",")[7].split(".OutSE_FusionPipe_Binned_10nt_Annotated.txt")[0]
-                    if not barcode in coords:
-                        coords[barcode]=[[barcodereads,Viralcoords,Humancoords,Anno]]
-                    else:
-                        coords[barcode].append([barcodereads,Viralcoords,Humancoords,Anno])
+                        barcoderchrom=item.split(",")[3]
+                        barcoderstart=item.split(",")[4]
+                        Humancoords=str(barcoderchrom)+":"+str(barcoderstart)
+                    
+                        barcodeAnnno1=item.split(",")[5]
+                        barcodeAnnno2=item.split(",")[6]
+
+                        Anno=barcodeAnnno1+"|"+barcodeAnnno2
+                    
+                        barcode=item.split(",")[7].split(".OutSE_FusionPipe_Binned_10nt_Annotated.txt")[0]
+                        if not barcode in coords:
+                            coords[barcode]=[[barcodereads,Viralcoords,Humancoords,Anno]]
+                        else:
+                            coords[barcode].append([barcodereads,Viralcoords,Humancoords,Anno])
     return(coords)
     
 
@@ -100,21 +115,33 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
 
     samtoolsexec= "/apps/bio/software/samtools/1.16.1/bin/samtools"
 
+    print("--- Extracting Non integrated reads ---")
+
+    
+    # Generate outputfolder!
+    try:
+        os.makedirs(Output)
+        os.makedirs(Output+"/Intermediates")
+        os.makedirs(Output+"/Distances")
+        os.makedirs(Output+"/Phylo")
+    except OSError: # folder exists, write to it.
+        print("* Folder Exists, write to it")
+
 
     unintegratedConsensusfiles=[]
     unintegratedConsensusfiles_split={}
     
     for key, value in coords.items():
         rawbam=RawBamsFolder+"/"+key+".bam"
-        unintegratedBam=Output+"/"+key+"_Unintegrated_HBV.bam"
+        unintegratedBam=Output+"/Intermediates/"+key+"_Unintegrated_HBV.bam"
         command="%s view %s HBV_D -h | grep -v $'\tSA:' | %s view -Sb - > %s" %(samtoolsexec, rawbam, samtoolsexec, unintegratedBam) # Extract the unintegrated reads by invert grepping the SA:Z
         subprocess.call(command, shell=True)        
-        outConsensusUnintegrated_all = Output+"/"+key+"_Unintegrated_HBV_All.consensus"
+        outConsensusUnintegrated_all = Output+"/Intermediates/"+key+"_Unintegrated_HBV_All.consensus"
         command = "%s consensus -l 5000 -c 0.6 -a %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated_all) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
         subprocess.call(command, shell=True)
         unintegratedConsensusfiles.append(outConsensusUnintegrated_all)
 
-        outConsensusUnintegrated = Output+"/"+key+"_Unintegrated_HBV.consensus"
+        outConsensusUnintegrated = Output+"/Intermediates/"+key+"_Unintegrated_HBV.consensus"
         command = "%s consensus -l 5000 -c 0.6 %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
         subprocess.call(command, shell=True)
 
@@ -142,7 +169,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
                 notNs.append(counter)
         counter=-1
         if seqall:
-            outFastaSplitOnParts=Output+"/"+key+"_Unintegrated_HBV_SplitOnBreaks.consensus" 
+            outFastaSplitOnParts=Output+"/Intermediates/"+key+"_Unintegrated_HBV_SplitOnBreaks.consensus" 
             with open(outFastaSplitOnParts, "w") as o: 
                 for i in notNs:
                     counter+=1
@@ -167,7 +194,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
                     end = prev
                     print(">"+key+"_HBV_unintegrated_"+str(startanno)+":"+str(end)+"\n"+seqall[start:end], file=o)
             unintegratedConsensusfiles_split[key]=[outFastaSplitOnParts]
-                
+
     return(unintegratedConsensusfiles_split)
          
 def ExtractFromOUTSE(TargetFolder,coords):
@@ -266,9 +293,6 @@ def ExtractFromOUTSE(TargetFolder,coords):
     return(coordswithseq)
                 
 
-
-
-
 def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfiles_split):
     """
     This one performs the multiple sequence alignments and generates the consenus within each bin
@@ -277,10 +301,10 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
     
     From this file we are taking dumb consensus 
     """
-    try:
-        os.makedirs(Output)
-    except OSError: # folder exists, write to it.
-        print("* Folder Exists, write to it")
+    #try:
+    #    os.makedirs(Output)
+    #except OSError: # folder exists, write to it.
+    #    print("* Folder Exists, write to it")
 
     MergedFastaOutputs=[]
         
@@ -292,7 +316,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
         for c in values:
             uniqueBreaks+=1
             coord=c[1].replace(":","_")+"_"+c[2].replace(":","_")
-            outfasta=Output+"/"+key+"_"+coord+".fasta"
+            outfasta=Output+"/Intermediates/"+key+"_"+coord+".fasta"
             counter=0
             with open(outfasta, "w") as o:
                 if len(c[4:]) == 1: # We only have one sequence, this will just be our Consens
@@ -304,8 +328,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
                         print(">"+str(counter)+"_"+coord+"\n"+seq, file=o)
                         if not outfasta in ForMA: # You should only append to it once! 
                             ForMA.append(outfasta)
-                        
-        
+                            
         print("--- Performing MA (For consenus generation)---")
         # Generates the multiple alignment for the consenus sequences
         
@@ -313,19 +336,19 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
         for f in ForMA:
             
             outf=f.split(".fasta")[0]+".phylip"
-            command = "%s -i %s -o %s --outfmt phylip --force --threads 2" %(ClustalOexec, f, outf)
-            #subprocess.call(command, shell=True)
+            command = "%s -i %s -o %s --outfmt phylip --force --threads 4" %(ClustalOexec, f, outf)
+            subprocess.call(command, shell=True)
             alignment = AlignIO.read(outf, "phylip")
             summary_align = AlignInfo.SummaryInfo(alignment)
             consensus = summary_align.dumb_consensus(threshold=0.6, ambiguous='X')  # ugly consensus just taking the majority, most common residue need to be atleast the treshold (60 % in this case)
             outf_consensus=f.split(".fasta")[0]+"_consensus.fasta"
             Consenussequences.append(outf_consensus)
             with open(outf_consensus, "w") as o:
-                outheader=outf.split("/")[1].strip(".phylip")
+                outheader=outf.split("/")[-1].strip(".phylip")
                 print(">"+outheader+"\n"+consensus, file=o)
 
         # Generates the merged fasta with singleTons and consensus
-        OutMerged=Output+"/"+key+"_Merged.fasta"
+        OutMerged=Output+"/Intermediates/"+key+"_Merged.fasta"
         with open(OutMerged, "w") as o:
             # print the singletons to file
             for i in Singletons:
@@ -348,11 +371,10 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
         else:
 
             unintegratedConsensusfiles_split[key]=[OutMerged]
-
     return(unintegratedConsensusfiles_split)
         
 
-def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split):
+def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, DistancePlottingScript):
     """
     Here we generates the tree using the different consensus sequences 
 
@@ -365,9 +387,10 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split):
     
     """
 
+    Rexec="/apps/bio/software/anaconda2/envs/R-4.3.1/bin/Rscript" # Path to R exec
 
     for key, values in unintegratedConsensusfiles_split.items():
-        MergedIntegrationsAndunintegrated=Output+"/"+key+"_Merged_unIntegrated_Integrated_consensus.fasta"
+        MergedIntegrationsAndunintegrated=Output+"/Intermediates/"+key+"_Merged_unIntegrated_Integrated_consensus.fasta"
 
         counter=0
         
@@ -377,79 +400,87 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split):
                     for l in inf:
                         l=l.strip()
                         counter+=1
+                        if ">" in l:
+                            l=">"+l.split("MergedFromPorechop_")[-1]
                         print(l, file=o)
 
         
         if counter > 2: # We need to have more than 1 sequence to be able to perform the MA
-                
             print("--- Performing MA (For tree generation)---")
-            Outfa=key.split(".fasta")[0]+"_MA.fa"
+            Outfa=Output+"/Intermediates/"+key+"_MA.fa"
             command = "%s -i %s -o %s --outfmt fasta --force --threads 4" %(ClustalOexec, MergedIntegrationsAndunintegrated, Outfa)
             subprocess.call(command, shell=True)
+            print(Outfa)
             align = AlignIO.read(Outfa,'fasta')
             print("--- Calculates the distance matrix ---")
             # Calculate the distance matrix
+            # Additional Visuzalization from R script! 
             calculator = DistanceCalculator('identity')
             distMatrix = calculator.get_distance(align)
             newnames=[]
-            for i in distMatrix.names:
-                i=i.split("MergedFromPorechop_")[-1]
-                
+            for i in distMatrix.names: 
                 newnames.append(i)
-            #print(newnames)
+                
             dismatDF = pd.DataFrame(list(distMatrix), columns=newnames, index=newnames)
-            #print(dismatDF)
-            outdistmat=Output+"/"+key+"_DistanceMatrix.csv"
+            outdistmat=Output+"/Distances/"+key+"_DistanceMatrix.csv"            
             dismatDF.to_csv(outdistmat)
+
+            # Plotting using R script
+            command = "%s %s %s"%(Rexec, DistancePlottingScript, outdistmat)
+            subprocess.call(command, shell=True)
+            
+            print("--- Constructs the phylogenetic trees---")
+            print("--- UPGMA (rooted)---")
+            constructor = DistanceTreeConstructor()
+            # Construct the phlyogenetic tree using UPGMA algorithm
+            UGMATree = constructor.upgma(distMatrix)
+            UPGMAout=Output+"/Phylo/"+key+"_UPGMA.newick"
+            UPGMAout_treeplot=Output+"/Phylo/"+key+"_UPGMA.svg"
+            Phylo.write(UGMATree, UPGMAout, "newick")
+            tree = Phylo.read(UPGMAout, "newick")
+            #Initialize circos sector with tree size
+            circos = Circos(sectors={"Tree": tree.count_terminals()})
+            sector = circos.sectors[0]
+            # Plot tree
+            track = sector.add_track((30, 100))
+            track.tree(tree, leaf_label_size=6)
+            fig = circos.plotfig()
+            fig.savefig(UPGMAout_treeplot)
+
+            # Construct the phlyogenetic tree using NJ algorithm
+            print("--- Neighbor-Joining (unrooted) ---")
+            NJTree = constructor.nj(distMatrix)
+            
+            for node in NJTree.get_nonterminals():
+                node.name=None
+
+            NJTreeout=Output+"/Phylo/"+key+"_NJ.newick"
+            NJTreeout_treeplot=Output+"/Phylo/"+key+"_NJ.svg"
+            Phylo.write(NJTree, NJTreeout, "newick")
+            tree = Phylo.read(NJTreeout, "newick")
+            #Initialize circos sector with tree size
+            circos = Circos(sectors={"Tree": tree.count_terminals()})
+            sector = circos.sectors[0]
+            # Plot tree
+            track = sector.add_track((30, 100))
+            track.tree(tree, leaf_label_size=6)
+            fig = circos.plotfig()
+            fig.savefig(NJTreeout_treeplot)    
         else: 
             print("warning, only 1 sequence in", key, "skipping!")
         
-    """
-    print("--- Constructs the phylogenetic trees---")
-    # Create a DistanceTreeConstructor object
-    constructor = DistanceTreeConstructor()
-    # Construct the phlyogenetic tree using UPGMA algorithm
 
-    print("--- UPGMA (rooted)---")
-    UGMATree = constructor.upgma(distMatrix)
-    #UPGMAout=OutMerged.strip(".fasta")+"_UPGMA.phyloxml"
-    
-    #Phylo.write(UGMATree, UPGMAout, "phyloxml")
-
-
-    UPGMAout=OutMerged.strip(".fasta")+"_UPGMA.newick"
-    Phylo.write(UGMATree, UPGMAout, "newick")
-
-    
-    # Construct the phlyogenetic tree using NJ algorithm
-
-    print("--- Neighbor-Joining (unrooted) ---")
-    NJTree = constructor.nj(distMatrix)
-
-    for node in NJTree.get_nonterminals():
-        node.name=None
-
-    NJTreeout=OutMerged.strip(".fasta")+"_NJ.newick"
-    Phylo.write(NJTree, NJTreeout, "newick")
-    
-    # Draw the phlyogenetic tree
-    #Phylo.draw(UGMATree)
-    # Draw the phlyogenetic tree using terminal
-    #Phylo.draw_ascii(NJTree)
-    
-    """
-
-def main(TargetFolder, RawBamsFolder, ClustalOexec, Output):
-    coords=extracCoords(TargetFolder)
+def main(TargetFolder, RawBamsFolder, ClustalOexec,DistancePlottingScript, Output, DepthTresh):
+    coords=extracCoords(TargetFolder, DepthTresh)
     unintegratedConsensusfiles_split=ExtractNonIntegratedHBV(coords,RawBamsFolder,Output)
     coordswithseq=ExtractFromOUTSE(TargetFolder,coords)
     unintegratedConsensusfiles=CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfiles_split)
-    GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split)
+    GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, DistancePlottingScript)
 
     
 if __name__=='__main__':
     arguments=parseArgs()
-    main(arguments.TargetFolder, arguments.RawBamsFolder, arguments.ClustalOexec, arguments.Output)
+    main(arguments.TargetFolder, arguments.RawBamsFolder, arguments.ClustalOexec, arguments.DistancePlottingScript, arguments.Output, arguments.DepthTresh)
     
 
 
