@@ -126,7 +126,7 @@ The idea is to create consensus for reads over the breakpoints and consensus for
    
 3. Extract the integrated HBV:  
    a) We are looping through the sorted coord dictionary (by nreads) generated in 1.  
-   b) The reads are extracted from *OutSE_FusionPipe.txt, only usese the viral path of the integration.  
+   b) The reads are extracted from ```*OutSE_FusionPipe.txt```, only usese the viral path of the integration.  
    c) The extracted sequences are added to the same coord dictonary as 2.  
 
 4. Create consenus for the breakpoints  
