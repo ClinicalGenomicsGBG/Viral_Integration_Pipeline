@@ -114,7 +114,7 @@ The idea is to create consensus for reads over the breakpoints and consensus for
 *What does it do in detail*
 
 1. The integration coordinates for each barcode is extracted from the PCR filtering ```*MergedParsedFilteredFromContamination_Bin10.txt```. Each barcode will be a key in coord dictionary.  
-   a) Here we can introduce a depth treshold, good to start with perhaps 10. This means that depth is only applied on the integrations, not the unintegrated parts!  
+   a) Here we can introduce a withing group depth treshold, good to start with perhaps 10. This means that depth is only applied on the integrations, not the unintegrated parts! Important if BC13 and BC14 are adding up to 10, say BC13 has one read and BC14 has 9 reads, both of them will be used! 
    
 2. Extract non integrated HBV and create a consensuns:  
    a) Extract all reads that does not contain a SA flag (unintegrated)  
