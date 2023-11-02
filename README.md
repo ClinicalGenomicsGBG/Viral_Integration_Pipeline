@@ -115,6 +115,7 @@ The idea is to create consensus for reads over the breakpoints and consensus for
 
 1. The integration coordinates for each barcode is extracted from the PCR filtering *MergedParsedFilteredFromContamination_Bin10.txt. Each barcode will be a key in coord dictionary. 
    a) Here we can introduce a depth treshold, good to start with perhaps 10. This means that depth is only applied on the integrations, not the unintegrated parts! 
+   
 2. Extract non integrated HBV and create a consensuns: 
    a) Extract all reads that does not contain a SA flag (unintegrated)
    b) Generates a consensus of all unintegrated HBV using samtools. Requires atleast 0.6 in evidence, no depth treshold. Print all positions
@@ -122,14 +123,17 @@ The idea is to create consensus for reads over the breakpoints and consensus for
    d) Using *b, c* we can split the consensus if there are more than 5 Ns ina row. The sequences should be ateast 10 nt in length.
    e) The final resulting file is called **_Unintegrated_HBV_SplitOnBreaks.consensus.**
    f) Path to this file is saved to a dictionary, barcode is key 
+   
 3. Extract the integrated HBV: 
    a) We are looping through the sorted coord dictionary (by nreads) generated in 1.  
    b) The reads are extracted from *OutSE_FusionPipe.txt, only usese the viral path of the integration. 
    c) The extracted sequences are added to the same coord dictonary as 2. 
+   
 4. Create consenus for the breakpoints
    a) The seqeunce singletons are saved to **barcode*coord*fasta**
    b) Clustal omega is used to generate a MA for those with multiple reads across the same breakpoint, consenus with evidence of 0.6 (majority rule) is used to generate the consenus sequences that are saved to **_consensus.fasta**
    c) The consenus and the singletons for each barcode is merged to ***Merged.fasta**. This is the one to be used for Next MA. The path to the merge fasta is saved to the same dictoionary as the unintegrated consenus sequences. 
+   
 5. Sequence Clustering (Within each barcode)
    a) The Merged integrations and the non integrated sequences are saved into ***_Merged_unIntegrated_Integrated_consensus.fasta**
    b) Clustal omega is used to generate one MA for each barcode, saved to ***MA.fa**
