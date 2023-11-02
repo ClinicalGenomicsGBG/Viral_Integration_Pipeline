@@ -33,6 +33,8 @@ from io import StringIO
 
 from ete3 import Tree
 
+import logging
+logging.basicConfig(level=logging.INFO)
 
 # The problem with extracting the fusions, we are taking the ones with the highest evidence and goes from 10 on each side for those, Therefore one read can be calculated multiple times which is wrong! We need to order by amount of reads, starting from them to go through the line, and if a read was already matched ignore it.
 
@@ -65,12 +67,11 @@ def extracCoords(TargetFolder, DepthTresh):
     Get the breakouts for each barcode by looping the MergedParsedFilteredFromContamination_Bin10.txt file from the Breakpipeline
     """
 
-    print("--- Extracting integrations based on depth filter " + str(DepthTresh) + " ---")
+    logging.info(" --- Extracting integrations based on depth filter " + str(DepthTresh) + " ---")
     
     coords={}
     
     for f in glob.glob(TargetFolder+"/*_MergedParsedFilteredFromContamination_Bin10.txt"):
-        print(f)
         with open(f, "r") as inf:
             next(inf)
             for l in inf:
@@ -115,7 +116,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
 
     samtoolsexec= "/apps/bio/software/samtools/1.16.1/bin/samtools"
 
-    print("--- Extracting Non integrated reads ---")
+    logging.info(" --- Extracting Non integrated reads ---")
 
     
     # Generate outputfolder!
@@ -124,7 +125,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
         os.makedirs(Output+"/Intermediates")
         os.makedirs(Output+"/Phylo")
     except OSError: # folder exists, write to it.
-        print("* Folder Exists, write to it")
+        logging.info("OutputFolder Exists, write to it")
 
 
     unintegratedConsensusfiles=[]
@@ -200,7 +201,7 @@ def ExtractFromOUTSE(TargetFolder,coords):
     """
     From the binnings extract all sequences, these will be used for the clustering
     """
-    print("--- Extracting the sequences coupled to the bins ---")
+    logging.info(" --- Extracting the sequences coupled to the bins ---")
     
     OUTSEfiles=glob.glob(TargetFolder+"/*.OutSE_FusionPipe.txt")
 
@@ -285,9 +286,9 @@ def ExtractFromOUTSE(TargetFolder,coords):
 
         
     if sumofreads != sumofdetec:
-        print("warning, not all reads were used in the clustering")
-        print("There should be", sumofreads,"reads")
-        print("We are getting",sumofdetec,"reads")
+        logging.error("warning, not all reads were used in the clustering")
+        logging.error("There should be", sumofreads,"reads")
+        logging.error("We are getting",sumofdetec,"reads")
 
     return(coordswithseq)
                 
@@ -328,7 +329,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
                         if not outfasta in ForMA: # You should only append to it once! 
                             ForMA.append(outfasta)
                             
-        print("--- Performing MA (For consenus generation)---")
+        logging.info(" --- Performing MA (For consenus generation) for " + key + " --- ")
         # Generates the multiple alignment for the consenus sequences
         
         Consenussequences=[]
@@ -362,7 +363,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
                     for l in cons:
                         l=l.strip()
                         print(l, file=o)        
-        print("For",key,"Reported", len(Singletons)+len(Consenussequences), "unique breakpoints of", uniqueBreaks)
+        logging.info("For " + key +" Reported " + str(len(Singletons)+len(Consenussequences)) + "unique breakpoints of " + str(uniqueBreaks))
         #MergedFastaOutputs.append(OutMerged)
         
         if key in unintegratedConsensusfiles_split:
@@ -405,14 +406,13 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, PhyloRS
 
         
         if counter > 2: # We need to have more than 1 sequence to be able to perform the MA
-            print("--- Performing MA (For tree generation)---")
+            logging.info("--- Performing MA (For tree generation)---")
             Outfa=Output+"/Phylo/"+key+"_MA.fa"
             command = "%s -i %s -o %s --outfmt fasta --force --threads 4" %(ClustalOexec, MergedIntegrationsAndunintegrated, Outfa)
             subprocess.call(command, shell=True)
 
             # We keep this plotting things in the R scrip, specially important to allow for gaps in the distance matrix! 
 
-            
             command = "%s %s %s " %(Rexec,PhyloRScript,Outfa)
             subprocess.call(command, shell=True)
             
