@@ -142,7 +142,14 @@ The idea is to create consensus for reads over the breakpoints and consensus for
    e) Two trees are generated using the distance matrix using APE (UPGMA and Neighour-joining), these are plotted using ggtree and saved in newick format.  
    f) UPGMA uses sequenctial clustering starting with things that is most similair which results in a rooted tree. Neighbour joining uses average distance using the other leaves, it produces a unrooted tree.  
    
-   
+
+### How to run
+
+```
+
+python ExtractReadsOverBreakpoins_SCOPE.py --TargetFolder Path/To/VirusPipelineOut/ --RawBams Path/To/Minimap2/ --ClustalOexec /Path/To/clustalo --Output OutPutFolder --PathToRVizScript /Path/To/DistanceMatrix_TreeGeneration.R --DepthTresh 10
+
+```
 
 ## For short read sequencing (iontorrent SE)
 
