@@ -122,7 +122,6 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
     try:
         os.makedirs(Output)
         os.makedirs(Output+"/Intermediates")
-        os.makedirs(Output+"/Distances")
         os.makedirs(Output+"/Phylo")
     except OSError: # folder exists, write to it.
         print("* Folder Exists, write to it")
