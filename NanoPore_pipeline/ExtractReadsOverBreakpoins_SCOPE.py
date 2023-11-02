@@ -53,7 +53,7 @@ def parseArgs():
     parser.add_argument('--RawBams', dest='RawBamsFolder', help='path to the folder containing the alignmentFiles from minimap2', required=True)
     parser.add_argument('--ClustalOexec', dest='ClustalOexec', help='Path to ClustalOmega', required=True)
     parser.add_argument('--Output', dest='Output', help='Output filename, sets the basename', required=True)
-    parser.add_argument('--PathToRVizScript', dest='DistancePlottingScript', help='Path to Script that generates the distance heatmap in R', required=True)
+    parser.add_argument('--PathToRVizScript', dest='PhyloRScript', help='Path to Script that generates the distances and trees in R', required=True)
     parser.add_argument('--DepthTresh', dest='DepthTresh', help='Depth Treshold for the integrations, this is not applied for the non integrated! (default 1)', type=int, default=1)
     arguments=parser.parse_args(sys.argv[1:])
     return arguments
@@ -340,7 +340,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
             subprocess.call(command, shell=True)
             alignment = AlignIO.read(outf, "phylip")
             summary_align = AlignInfo.SummaryInfo(alignment)
-            consensus = summary_align.dumb_consensus(threshold=0.6, ambiguous='X')  # ugly consensus just taking the majority, most common residue need to be atleast the treshold (60 % in this case)
+            consensus = summary_align.dumb_consensus(threshold=0.6, ambiguous='N')  # ugly consensus just taking the majority, most common residue need to be atleast the treshold (60 % in this case)
             outf_consensus=f.split(".fasta")[0]+"_consensus.fasta"
             Consenussequences.append(outf_consensus)
             with open(outf_consensus, "w") as o:
@@ -374,7 +374,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
     return(unintegratedConsensusfiles_split)
         
 
-def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, DistancePlottingScript):
+def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, PhyloRScript):
     """
     Here we generates the tree using the different consensus sequences 
 
@@ -407,10 +407,17 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, Distanc
         
         if counter > 2: # We need to have more than 1 sequence to be able to perform the MA
             print("--- Performing MA (For tree generation)---")
-            Outfa=Output+"/Intermediates/"+key+"_MA.fa"
+            Outfa=Output+"/Phylo/"+key+"_MA.fa"
             command = "%s -i %s -o %s --outfmt fasta --force --threads 4" %(ClustalOexec, MergedIntegrationsAndunintegrated, Outfa)
             subprocess.call(command, shell=True)
-            print(Outfa)
+
+            # We keep this plotting things in the R scrip, specially important to allow for gaps in the distance matrix! 
+
+            
+            command = "%s %s %s " %(Rexec,PhyloRScript,Outfa)
+            subprocess.call(command, shell=True)
+            
+            """
             align = AlignIO.read(Outfa,'fasta')
             print("--- Calculates the distance matrix ---")
             # Calculate the distance matrix
@@ -465,22 +472,23 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, Distanc
             track = sector.add_track((30, 100))
             track.tree(tree, leaf_label_size=6)
             fig = circos.plotfig()
-            fig.savefig(NJTreeout_treeplot)    
+            fig.savefig(NJTreeout_treeplot)
+            """
         else: 
             print("warning, only 1 sequence in", key, "skipping!")
         
 
-def main(TargetFolder, RawBamsFolder, ClustalOexec,DistancePlottingScript, Output, DepthTresh):
+def main(TargetFolder, RawBamsFolder, ClustalOexec, PhyloRScript, Output, DepthTresh):
     coords=extracCoords(TargetFolder, DepthTresh)
     unintegratedConsensusfiles_split=ExtractNonIntegratedHBV(coords,RawBamsFolder,Output)
     coordswithseq=ExtractFromOUTSE(TargetFolder,coords)
     unintegratedConsensusfiles=CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfiles_split)
-    GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, DistancePlottingScript)
+    GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, PhyloRScript)
 
     
 if __name__=='__main__':
     arguments=parseArgs()
-    main(arguments.TargetFolder, arguments.RawBamsFolder, arguments.ClustalOexec, arguments.DistancePlottingScript, arguments.Output, arguments.DepthTresh)
+    main(arguments.TargetFolder, arguments.RawBamsFolder, arguments.ClustalOexec, arguments.PhyloRScript, arguments.Output, arguments.DepthTresh)
     
 
 
