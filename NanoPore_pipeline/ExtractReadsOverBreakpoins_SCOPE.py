@@ -138,12 +138,12 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
         #subprocess.call(command, shell=True)        
         outConsensusUnintegrated_all = Output+"/Intermediates/"+key+"_Unintegrated_HBV_All.consensus"
         command = "%s consensus -l 5000 -c 0.6 -a %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated_all) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
-        #subprocess.call(command, shell=True)
+        subprocess.call(command, shell=True)
         unintegratedConsensusfiles.append(outConsensusUnintegrated_all)
 
         outConsensusUnintegrated = Output+"/Intermediates/"+key+"_Unintegrated_HBV.consensus"
         command = "%s consensus -l 5000 -c 0.6 %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
-        #subprocess.call(command, shell=True)
+        subprocess.call(command, shell=True)
 
         seqall=""
         seq=""
