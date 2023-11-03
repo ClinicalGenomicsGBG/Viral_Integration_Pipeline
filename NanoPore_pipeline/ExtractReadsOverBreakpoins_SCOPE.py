@@ -125,7 +125,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
         os.makedirs(Output+"/Intermediates")
         os.makedirs(Output+"/Phylo")
     except OSError: # folder exists, write to it.
-        logging.info("OutputFolder Exists, write to it")
+        logging.info(" OutputFolder Exists, write to it")
 
 
     unintegratedConsensusfiles=[]
@@ -135,15 +135,15 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
         rawbam=RawBamsFolder+"/"+key+".bam"
         unintegratedBam=Output+"/Intermediates/"+key+"_Unintegrated_HBV.bam"
         command="%s view %s HBV_D -h | grep -v $'\tSA:' | %s view -Sb - > %s" %(samtoolsexec, rawbam, samtoolsexec, unintegratedBam) # Extract the unintegrated reads by invert grepping the SA:Z
-        subprocess.call(command, shell=True)        
+        #subprocess.call(command, shell=True)        
         outConsensusUnintegrated_all = Output+"/Intermediates/"+key+"_Unintegrated_HBV_All.consensus"
         command = "%s consensus -l 5000 -c 0.6 -a %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated_all) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
-        subprocess.call(command, shell=True)
+        #subprocess.call(command, shell=True)
         unintegratedConsensusfiles.append(outConsensusUnintegrated_all)
 
         outConsensusUnintegrated = Output+"/Intermediates/"+key+"_Unintegrated_HBV.consensus"
         command = "%s consensus -l 5000 -c 0.6 %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
-        subprocess.call(command, shell=True)
+        #subprocess.call(command, shell=True)
 
         seqall=""
         seq=""
@@ -201,6 +201,8 @@ def ExtractFromOUTSE(TargetFolder,coords):
     """
     From the binnings extract all sequences, these will be used for the clustering
     """
+
+    
     logging.info(" --- Extracting the sequences coupled to the bins ---")
     
     OUTSEfiles=glob.glob(TargetFolder+"/*.OutSE_FusionPipe.txt")
@@ -210,17 +212,19 @@ def ExtractFromOUTSE(TargetFolder,coords):
     
     sumofdetec=0
     for key, values in coords.items():
+        perbarcode=0
         Detec=[] # We should only extract it once! 
         for c in values:
             counts=c[0]
             sumofreads+=counts
-
+            perbarcode+=counts
         ## Test this
         sortedvalues=sorted(values, key=lambda x: x[0], reverse=True)
         OutSE=TargetFolder+"/"+key+".OutSE_FusionPipe.txt"
     
-        for c in sortedvalues:
+        for c in sortedvalues:            
             cwithseq=c
+
             VirusChromosome=c[1].split(":")[0]
             VirusCoord=int(c[1].split(":")[1] )
             HumanChromosome=c[2].split(":")[0]
@@ -239,56 +243,47 @@ def ExtractFromOUTSE(TargetFolder,coords):
                         if (VirusCoord-10) <= ViralBreak <= (VirusCoord+10):
                             if (HumanCoord-10) <= HumanBreak <= (HumanCoord+10):
                                 if not identifier in Detec:
-                                    
                                     combinedseq=ViralSeq+HumanSeq
                                     cwithseq.append(ViralSeq)
                                     Detec.append(identifier)
-                            
+
+
             if not key in coordswithseq:
                 coordswithseq[key] = [cwithseq]
             else:
                 coordswithseq[key].append(cwithseq)
+                                    
 
-        sumofdetec+=len(Detec)
-        """
-        sortedvalues=sorted(values, key=lambda x: x[0], reverse=True)        
-        for OutSE in OUTSEfiles:
-            if key in OutSE:
-                with open(OutSE, "r") as inf:
-                    next(inf)
-                    for l in inf:
-                        identifier=l.split("\t")[0]
-                        ViralFusChrom=str(l.split("\t")[1])
-                        ViralBreak=int(l.split("\t")[3])
-                        ViralSeq=str(l.split("\t")[5])
-                        HumanFusChrom=str(l.split("\t")[8])
-                        HumanBreak=int(l.split("\t")[9])
-                        HumanSeq=str(l.split("\t")[12])
-                        for c in sortedvalues:
-                            cwithseq=c                            
-                            VirusChromosome=c[1].split(":")[0]
-                            VirusCoord=int(c[1].split(":")[1] )
-                            HumanChromosome=c[2].split(":")[0]
-                            HumanCoord=int(c[2].split(":")[1])
-                            if ViralFusChrom == VirusChromosome and HumanChromosome == HumanFusChrom:
-                                if (VirusCoord-10) <= ViralBreak <= (VirusCoord+10):
-                                    if (HumanCoord-10) <= HumanBreak <= (HumanCoord+10):
-                                        if not identifier in Detec:
-                                            combinedseq=ViralSeq+HumanSeq
-                                            cwithseq.append(ViralSeq)
-                                            Detec.append(identifier)
-                                            
-                                            if not key in coordswithseq:
-                                                coordswithseq[key] = [cwithseq]
-                                            else:
-                                                coordswithseq[key].append(cwithseq)               
-        """
 
         
-    if sumofreads != sumofdetec:
-        logging.error("warning, not all reads were used in the clustering")
-        logging.error("There should be", sumofreads,"reads")
-        logging.error("We are getting",sumofdetec,"reads")
+        #print(cwithseq)            
+        """                        
+            if not c[0] == len(c[4:]):
+                print(key)
+                print(c[0], c[4:])
+        
+        """
+
+
+        sumofdetec+=len(Detec)
+         
+
+        if perbarcode != len(Detec):
+            logging.warning(" not all reads were used in the clustering for: " + str(key))
+            logging.warning(" There should be " + str(perbarcode) + " reads")
+            logging.warning(" We are getting " + str(len(Detec)) + " reads")
+
+        #print(key)
+        #print(len(Detec))
+        #print(perbarcode)
+        #sumofdetec+=len(Detec)
+
+        
+        
+    #if sumofreads != sumofdetec:
+    #    logging.error("warning, not all reads were used in the clustering")
+    #    logging.error("There should be " + str(sumofreads) + " reads")
+    #    logging.error("We are getting " + str(sumofdetec) + " reads")
 
     return(coordswithseq)
                 
@@ -363,7 +358,7 @@ def CreateConsensus(Output, ClustalOexec, coordswithseq, unintegratedConsensusfi
                     for l in cons:
                         l=l.strip()
                         print(l, file=o)        
-        logging.info("For " + key +" Reported " + str(len(Singletons)+len(Consenussequences)) + "unique breakpoints of " + str(uniqueBreaks))
+        logging.info(" For " + key +" Reported " + str(len(Singletons)+len(Consenussequences)) + " unique breakpoints of " + str(uniqueBreaks))
         #MergedFastaOutputs.append(OutMerged)
         
         if key in unintegratedConsensusfiles_split:
@@ -405,14 +400,16 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, PhyloRS
                         print(l, file=o)
 
         
-        if counter > 2: # We need to have more than 1 sequence to be able to perform the MA
-            logging.info("--- Performing MA (For tree generation)---")
+        if counter > 4: # We need to have more than 3 sequence to be able to perform the the tree
+            logging.info("--- Performing MA (For tree generation) ---")
             Outfa=Output+"/Phylo/"+key+"_MA.fa"
             command = "%s -i %s -o %s --outfmt fasta --force --threads 4" %(ClustalOexec, MergedIntegrationsAndunintegrated, Outfa)
             subprocess.call(command, shell=True)
 
             # We keep this plotting things in the R scrip, specially important to allow for gaps in the distance matrix! 
 
+            
+            
             command = "%s %s %s " %(Rexec,PhyloRScript,Outfa)
             subprocess.call(command, shell=True)
             
@@ -474,7 +471,7 @@ def GenerateTree(Output, ClustalOexec, unintegratedConsensusfiles_split, PhyloRS
             fig.savefig(NJTreeout_treeplot)
             """
         else: 
-            print("warning, only 1 sequence in", key, "skipping!")
+            print("warning, less than 3 sequences in", key, "skipping!")
         
 
 def main(TargetFolder, RawBamsFolder, ClustalOexec, PhyloRScript, Output, DepthTresh):
