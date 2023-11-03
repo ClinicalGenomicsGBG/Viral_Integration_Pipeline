@@ -135,7 +135,7 @@ def ExtractNonIntegratedHBV(coords,RawBamsFolder,Output):
         rawbam=RawBamsFolder+"/"+key+".bam"
         unintegratedBam=Output+"/Intermediates/"+key+"_Unintegrated_HBV.bam"
         command="%s view %s HBV_D -h | grep -v $'\tSA:' | %s view -Sb - > %s" %(samtoolsexec, rawbam, samtoolsexec, unintegratedBam) # Extract the unintegrated reads by invert grepping the SA:Z
-        #subprocess.call(command, shell=True)        
+        subprocess.call(command, shell=True)        
         outConsensusUnintegrated_all = Output+"/Intermediates/"+key+"_Unintegrated_HBV_All.consensus"
         command = "%s consensus -l 5000 -c 0.6 -a %s > %s" %(samtoolsexec, unintegratedBam, outConsensusUnintegrated_all) # Generate the consensus with samtools consensus, print all so we get the range of unitegrated things,
         subprocess.call(command, shell=True)
